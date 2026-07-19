@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { ActionState } from './learning'
+import { isFeatureEnabled } from '@/lib/flags'
 
 // Authentication Zod validator schemas
 const loginSchema = z.object({
@@ -15,6 +16,7 @@ const signupSchema = z.object({
   email: z.string().email('البريد الإلكتروني غير صحيح'),
   password: z.string().min(6, 'كلمة المرور يجب أن لا تقل عن ٦ أحرف'),
   fullName: z.string().min(2, 'الاسم الكامل يجب أن لا يقل عن حرفين'),
+  betaCode: z.string().optional()
 })
 
 /**
@@ -59,8 +61,28 @@ export async function signUpWithEmailPassword(
     }
 
     const supabase = await createClient()
-    
-    // Auth Signup. Metdata is sent to populate profile trigger.
+
+    // Beta Code Verification
+    const publicSignupEnabled = await isFeatureEnabled('ENABLE_PUBLIC_SIGNUP')
+    if (!publicSignupEnabled) {
+      if (!parsed.data.betaCode) {
+        return { success: false, error: 'رمز الدعوة مطلوب' }
+      }
+      
+      const { data: invite, error: inviteErr } = await supabase
+        .from('beta_invites')
+        .select('used_by')
+        .eq('code', parsed.data.betaCode)
+        .single()
+        
+      if (inviteErr || !invite) {
+        return { success: false, error: 'رمز الدعوة غير صحيح' }
+      }
+      if (invite.used_by) {
+        return { success: false, error: 'رمز الدعوة مستخدم مسبقاً' }
+      }
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
@@ -72,13 +94,21 @@ export async function signUpWithEmailPassword(
     })
 
     if (error || !data.user) {
-      return { success: false, error: error?.message || 'فشل تسجيل الحساب الجديد' }
+      return { success: false, error: error?.message || 'حدث خطأ أثناء تسجيل حساب جديد' }
+    }
+
+    // Mark beta code as used
+    if (!publicSignupEnabled && parsed.data.betaCode) {
+      await supabase
+        .from('beta_invites')
+        .update({ used_by: data.user.id })
+        .eq('code', parsed.data.betaCode)
     }
 
     revalidatePath('/(app)/journey', 'layout')
     return { success: true, data: { userId: data.user.id } }
   } catch {
-    return { success: false, error: 'حدث خطأ غير متوقع أثناء تسجيل الحساب' }
+    return { success: false, error: 'حدث خطأ غير متوقع أثناء إنشاء الحساب' }
   }
 }
 

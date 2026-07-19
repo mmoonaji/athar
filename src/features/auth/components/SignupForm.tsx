@@ -11,12 +11,13 @@ import { trackEvent } from '@/lib/analytics'
  * Client Component: Interactive signup form featuring Arabic RTL alerts,
  * registration actions, and progress syncing logic.
  */
-export function SignupForm() {
+export function SignupForm({ requiresBetaCode = false }: { requiresBetaCode?: boolean }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [betaCode, setBetaCode] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -33,8 +34,13 @@ export function SignupForm() {
       return
     }
 
+    if (requiresBetaCode && !betaCode) {
+      setErrorMsg('رمز الدعوة مطلوب في المرحلة التجريبية')
+      return
+    }
+
     startTransition(async () => {
-      const res = await signUpWithEmailPassword({ email, password, fullName })
+      const res = await signUpWithEmailPassword({ email, password, fullName, betaCode: requiresBetaCode ? betaCode : undefined })
       if (res.success && res.data) {
         trackEvent('signup_completed')
         
@@ -112,6 +118,25 @@ export function SignupForm() {
           required
         />
       </div>
+
+      {requiresBetaCode && (
+        <div>
+          <label className="block text-xs font-bold text-muted-foreground mb-1.5" htmlFor="betaCode">
+            رمز الدعوة (Beta)
+          </label>
+          <input
+            id="betaCode"
+            type="text"
+            value={betaCode}
+            onChange={(e) => setBetaCode(e.target.value)}
+            disabled={isPending}
+            className="w-full border border-input bg-background px-3.5 py-2.5 rounded-xl focus:ring-2 focus:ring-primary-500 focus:outline-none text-sm text-start"
+            placeholder="ATHAR-BETA-..."
+            dir="ltr"
+            required
+          />
+        </div>
+      )}
 
       {errorMsg && (
         <div className="bg-red-50/50 border border-red-100 p-3.5 rounded-xl flex gap-2.5 items-start mt-2">

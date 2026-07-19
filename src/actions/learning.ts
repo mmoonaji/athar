@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { ContentBlock } from '@/types/content'
+import { checkAndGrantAchievements } from '@/actions/achievements'
 
 // Simple result state wrapper
 export interface ActionState<T> {
@@ -41,7 +42,7 @@ export async function getLessons(): Promise<ActionState<LessonSummary[]>> {
     const { data, error } = await supabase
       .from('lessons')
       .select('id, title, slug, description, duration_minutes, order_index, published, module_id')
-      .eq('published', true)
+      .eq('status', 'PUBLISHED')
       .order('order_index', { ascending: true })
 
     if (error) {
@@ -69,7 +70,7 @@ export async function getLessonBySlug(slugInput: string): Promise<ActionState<De
       .from('lessons')
       .select('*')
       .eq('slug', parsed.data)
-      .eq('published', true)
+      .eq('status', 'PUBLISHED')
       .single()
 
     if (error || !data) {
@@ -121,6 +122,19 @@ export async function completeLesson(lessonIdInput: string): Promise<ActionState
       return { success: false, error: 'تعذر حفظ تقدم التعلم بالخادم' }
     }
 
+    // Update new user_lesson_progress table as completed
+    await supabase
+      .from('user_lesson_progress')
+      .upsert(
+        {
+          user_id: user.id,
+          lesson_id: parsed.data,
+          completed_at: new Date().toISOString(),
+          completion_percentage: 100,
+        },
+        { onConflict: 'user_id,lesson_id' }
+      )
+
     // 2. Fetch profile to calculate streak
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -167,6 +181,9 @@ export async function completeLesson(lessonIdInput: string): Promise<ActionState
           .eq('id', user.id)
       }
     }
+
+    // Grant any newly earned achievements
+    await checkAndGrantAchievements(user.id)
 
     // Dynamic cache invalidation for the learning routes
     revalidatePath('/(app)/journey', 'layout')
@@ -218,7 +235,7 @@ export async function toggleBookmark(lessonIdInput: string): Promise<ActionState
         return { success: false, error: 'فشل إلغاء العلامة المرجعية' }
       }
       
-      revalidatePath('/(app)/library', 'layout')
+      revalidatePath('/(app)/bookmarks', 'layout')
       return { success: true, data: { bookmarked: false } }
     } else {
       // Create bookmark
@@ -230,10 +247,82 @@ export async function toggleBookmark(lessonIdInput: string): Promise<ActionState
         return { success: false, error: 'فشل حفظ العلامة المرجعية' }
       }
 
-      revalidatePath('/(app)/library', 'layout')
+      revalidatePath('/(app)/bookmarks', 'layout')
       return { success: true, data: { bookmarked: true } }
     }
   } catch {
     return { success: false, error: 'خطأ غير متوقع في تعديل العلامة المرجعية' }
+  }
+}
+
+/**
+ * Server Action: Tracks the initiation of a learning session.
+ */
+export async function startLesson(lessonId: string): Promise<ActionState<{ startedAt: string }>> {
+  try {
+    const parsed = uuidSchema.safeParse(lessonId)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'يجب تسجيل الدخول لبدء الدرس' }
+
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('user_lesson_progress')
+      .upsert(
+        {
+          user_id: user.id,
+          lesson_id: parsed.data,
+          started_at: now,
+          completion_percentage: 10,
+        },
+        { onConflict: 'user_id,lesson_id' }
+      )
+
+    if (error) {
+      return { success: false, error: 'تعذر تسجيل بدء الدرس في الخادم' }
+    }
+
+    return { success: true, data: { startedAt: now } }
+  } catch {
+    return { success: false, error: 'خطأ غير متوقع في تسجيل بدء الدرس' }
+  }
+}
+
+/**
+ * Server Action: Saves the results of a quiz interaction.
+ */
+export async function saveQuizResult(lessonId: string, score: number): Promise<ActionState<{ success: boolean }>> {
+  try {
+    const parsed = uuidSchema.safeParse(lessonId)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: 'يجب تسجيل الدخول لحفظ نتيجة الاختبار' }
+
+    const { error } = await supabase
+      .from('user_lesson_progress')
+      .upsert(
+        {
+          user_id: user.id,
+          lesson_id: parsed.data,
+          quiz_score: score,
+        },
+        { onConflict: 'user_id,lesson_id' }
+      )
+
+    if (error) {
+      return { success: false, error: 'تعذر حفظ نتيجة الاختبار في الخادم' }
+    }
+
+    return { success: true, data: { success: true } }
+  } catch {
+    return { success: false, error: 'خطأ غير متوقع في حفظ نتيجة الاختبار' }
   }
 }

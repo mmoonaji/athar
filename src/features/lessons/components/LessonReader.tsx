@@ -5,10 +5,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ReadingProgress } from './ReadingProgress'
 import { ContentRenderer } from './ContentRenderer'
-import { DetailedLesson } from '@/actions/learning'
+import { DetailedLesson, startLesson } from '@/actions/learning'
 import { toggleBookmark } from '@/actions/learning'
 import { Bookmark, ArrowRight, HelpCircle, Info } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics'
+import { LessonFeedback } from './LessonFeedback'
 
 interface LessonReaderProps {
   lesson: DetailedLesson
@@ -31,7 +32,12 @@ export function LessonReader({ lesson, isBookmarked, prevLessonSlug, nextLessonS
   useEffect(() => {
     window.scrollTo(0, 0)
     trackEvent('lesson_started', { slug: lesson.slug, title: lesson.title })
-  }, [lesson.slug, lesson.title])
+    
+    // Trigger startLesson tracker
+    startTransition(async () => {
+      await startLesson(lesson.id)
+    })
+  }, [lesson.id, lesson.slug, lesson.title])
 
   const handleToggleBookmark = () => {
     setErrorMsg(null)
@@ -80,7 +86,12 @@ export function LessonReader({ lesson, isBookmarked, prevLessonSlug, nextLessonS
 
       {/* Lesson Content Blocks */}
       <main className="flex-1">
-        <ContentRenderer blocks={lesson.content} />
+        <div className="pt-8 border-t border-border mt-12 mb-8">
+          <ContentRenderer blocks={lesson.content} />
+        </div>
+
+        {/* Feedback Section */}
+        <LessonFeedback lessonId={lesson.id} />
 
         {/* References Callout */}
         <div className="mt-8 border-t border-border pt-4">

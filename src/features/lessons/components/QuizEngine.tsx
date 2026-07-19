@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import Link from 'next/link'
-import { completeLesson } from '@/actions/learning'
+import { completeLesson, saveQuizResult } from '@/actions/learning'
 import { CheckCircle2, AlertTriangle, ArrowLeft, RefreshCw, Award, Flame } from 'lucide-react'
 import { trackEvent } from '@/lib/analytics'
 
@@ -41,6 +41,10 @@ export function QuizEngine({ lessonId, lessonSlug, pathSlug, questions, isAuthen
   const [pointsEarned, setPointsEarned] = useState(10)
 
   const activeQuestion = questions[currentIdx]
+
+  useEffect(() => {
+    trackEvent('quiz_started', { lessonId })
+  }, [lessonId])
   
   // Guard for empty quiz data
   if (!activeQuestion) {
@@ -86,6 +90,7 @@ export function QuizEngine({ lessonId, lessonSlug, pathSlug, questions, isAuthen
 
       if (isAuthenticated) {
         startTransition(async () => {
+          await saveQuizResult(lessonId, score)
           const res = await completeLesson(lessonId)
           if (res.success) {
             setPointsEarned(10) // Mock award points

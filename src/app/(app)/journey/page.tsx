@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getProfileDetails } from '@/actions/profile'
-import { Flame, Gem, Compass, CheckCircle2, Circle } from 'lucide-react'
+import { Flame, Gem, Compass, CheckCircle2, Circle, BookOpen, Clock, Trophy } from 'lucide-react'
 import { LogoutButton } from '@/features/auth/components/LogoutButton'
+import { AchievementBadges } from '@/features/journey/components/AchievementBadges'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,6 +85,24 @@ export default async function JourneyPage() {
 
   const completedIds = progress ? progress.map((p) => p.lesson_id) : []
 
+  // Fetch most recently accessed lesson for "Continue Learning" card
+  const { data: lastProgressRow } = await supabase
+    .from('user_lesson_progress')
+    .select('lesson_id, started_at, completion_percentage')
+    .eq('user_id', user.id)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // Total learning minutes from completed lessons
+  const totalLearnedMinutes = completedIds.length > 0
+    ? (await supabase
+        .from('lessons')
+        .select('duration_minutes')
+        .in('id', completedIds)
+      ).data?.reduce((sum, l) => sum + (l.duration_minutes ?? 0), 0) ?? 0
+    : 0
+
   // Check if we have path information from Supabase
   const { data: dbPath } = await supabase
     .from('paths')
@@ -108,7 +127,7 @@ export default async function JourneyPage() {
           .from('lessons')
           .select('id, title, slug, duration_minutes, order_index')
           .eq('module_id', mod.id)
-          .eq('published', true)
+          .eq('status', 'PUBLISHED')
           .order('order_index', { ascending: true })
 
         modulesWithLessons.push({
@@ -178,6 +197,75 @@ export default async function JourneyPage() {
 
       {/* Main Journey Map */}
       <main className="flex-1 flex flex-col gap-6">
+
+        {/* === LEARNING STATISTICS SECTION === */}
+        <section className="grid grid-cols-2 gap-3">
+          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-primary-50 rounded-lg flex items-center justify-center shrink-0">
+              <BookOpen className="w-4 h-4 text-primary-700" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">دروس مكتملة</p>
+              <p className="text-base font-extrabold text-primary-950">{completedCount}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-secondary-50 rounded-lg flex items-center justify-center shrink-0">
+              <Flame className="w-4 h-4 text-secondary-500" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">سلسلة التعلم</p>
+              <p className="text-base font-extrabold text-primary-950">{profile.current_streak} يوم</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center shrink-0">
+              <Clock className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">دقائق تعلمتها</p>
+              <p className="text-base font-extrabold text-primary-950">{totalLearnedMinutes}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border rounded-xl p-3 flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center shrink-0">
+              <Trophy className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground font-medium">إنجاز المسار</p>
+              <p className="text-base font-extrabold text-primary-950">{percent}٪</p>
+            </div>
+          </div>
+        </section>
+
+        {/* === CONTINUE LEARNING CARD (only if started a lesson) === */}
+        {lastProgressRow && (() => {
+          const lastLesson = allLessons.find((l) => l.id === lastProgressRow.lesson_id)
+          const progressPct = lastProgressRow.completion_percentage ?? 0
+          const isCompleted = completedIds.includes(lastProgressRow.lesson_id)
+          return lastLesson && !isCompleted ? (
+            <section className="bg-primary-950 text-white p-4 rounded-2xl shadow-sm">
+              <p className="text-[10px] font-bold text-primary-300 tracking-wider mb-1">تابع من حيث توقفت</p>
+              <h3 className="text-sm font-extrabold mb-2">{lastLesson.title}</h3>
+              <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden mb-3">
+                <div
+                  className="bg-secondary-400 h-full rounded-full"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-primary-300 mb-3">
+                <span>{progressPct}% مكتمل</span>
+                <span>⏱️ {lastLesson.duration_minutes} دقائق</span>
+              </div>
+              <Link
+                href={`/lesson/${lastLesson.slug}`}
+                className="w-full h-9 bg-white text-primary-950 font-bold text-xs rounded-xl flex items-center justify-center hover:bg-primary-50 transition-all"
+              >
+                متابعة الدرس ←
+              </Link>
+            </section>
+          ) : null
+        })()}
         {/* Streak Experience Card */}
         <section className="bg-primary-950 text-white p-5 rounded-2xl relative overflow-hidden shadow-sm text-start flex justify-between items-center">
           <div className="flex-1">
@@ -325,6 +413,9 @@ export default async function JourneyPage() {
             })}
           </div>
         </section>
+
+        {/* Achievements */}
+        <AchievementBadges />
 
         {/* Quick actions */}
         <section className="mt-4 flex flex-col gap-2">

@@ -1,7 +1,10 @@
 import { SignupForm } from '@/features/auth/components/SignupForm'
 import Link from 'next/link'
+import { isFeatureEnabled } from '@/lib/flags'
 
-export default function SignupPage() {
+export default async function SignupPage() {
+  const publicSignupEnabled = await isFeatureEnabled('ENABLE_PUBLIC_SIGNUP')
+  
   return (
     <div className="flex-1 bg-background text-foreground flex flex-col p-4 max-w-md mx-auto w-full min-h-screen justify-center">
       <div className="bg-card border border-border p-6 rounded-2xl w-full shadow-sm text-center">
@@ -16,7 +19,7 @@ export default function SignupPage() {
         <h2 className="text-xl font-extrabold text-primary-950 mb-1">ابدأ بناء أثرك اليوم</h2>
         <p className="text-sm text-muted-foreground mb-6">أنشئ حساباً مجانياً لحفظ تقدمك ومزامنة سلسلتك</p>
 
-        <SignupForm />
+        <SignupForm requiresBetaCode={!publicSignupEnabled} />
         
         <div className="border-t border-border pt-4 mt-6">
           <Link href="/" className="text-xs text-muted-foreground hover:text-foreground">
