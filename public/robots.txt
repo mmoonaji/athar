@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /learn
+Allow: /lesson/
+Disallow: /journey
+Disallow: /profile
+Disallow: /bookmarks
+Disallow: /login
+Disallow: /signup
+
+Sitemap: https://athar-app.vercel.app/sitemap.xml

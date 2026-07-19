@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f766e" />
+      <stop offset="100%" stop-color="#115e59" />
+    </linearGradient>
+    <linearGradient id="amberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <!-- Circle Background -->
+  <circle cx="256" cy="256" r="240" fill="url(#tealGrad)" stroke="#115e59" stroke-width="8" />
+  
+  <!-- Stylized Arabic Calligraphy Letter 'أ' -->
+  <!-- Main stem -->
+  <path d="M 236 170 C 236 170 256 160 260 160 C 264 160 268 166 268 174 L 268 390 C 268 398 262 404 254 404 C 246 404 238 398 238 390 L 238 174 C 238 172 236 170 236 170 Z" fill="#ffffff" />
+  
+  <!-- Hamza Calligraphic Top -->
+  <path d="M 244 116 C 244 116 236 122 232 126 C 228 130 230 134 236 134 C 242 134 256 122 264 122 C 272 122 278 126 278 132 C 278 138 270 144 262 146 C 254 148 248 152 248 158 C 248 164 256 168 266 166 C 276 164 288 150 288 134 C 288 118 274 104 258 104 C 248 104 244 110 244 116 Z" fill="url(#amberGrad)" />
+</svg>
